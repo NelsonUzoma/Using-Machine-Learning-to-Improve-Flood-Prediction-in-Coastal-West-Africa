@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CoastGuard FINN: flood early-warning prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EAF2F3; --surface:#FFFFFF; --ink:#0F2530; --muted:#557480; --line:#D2E0E4;
+  --accent:#0E6A88; --accent-ink:#FFFFFF; --accent-soft:#D9ECF2;
+  --sea:#CBE2EA; --land:#EFF0E3; --coast:#7EA6B4; --river:#5AA6C3; --border-map:#9DB7BE;
+  --r0:#2A9D6F; --r1:#D49A12; --r2:#E2661F; --r3:#CF2E3B;
+  --display:'Bricolage Grotesque','Avenir Next','Segoe UI',system-ui,sans-serif;
+  --body:'Instrument Sans','Avenir Next','Segoe UI',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0A1A22; --surface:#10262F; --ink:#E6F1F4; --muted:#8FAAB5; --line:#21404C;
+    --accent:#52B5D3; --accent-ink:#05202A; --accent-soft:#16404F;
+    --sea:#0B2733; --land:#173846; --coast:#3E7387; --river:#3D8DAA; --border-map:#48707F;
+    --r0:#43C08C; --r1:#E8B93E; --r2:#F08443; --r3:#F0575F;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0A1A22; --surface:#10262F; --ink:#E6F1F4; --muted:#8FAAB5; --line:#21404C;
+  --accent:#52B5D3; --accent-ink:#05202A; --accent-soft:#16404F;
+  --sea:#0B2733; --land:#173846; --coast:#3E7387; --river:#3D8DAA; --border-map:#48707F;
+  --r0:#43C08C; --r1:#E8B93E; --r2:#F08443; --r3:#F0575F;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+button,select,input{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--display);margin:0;line-height:1.15;letter-spacing:-.01em}
+p{margin:0}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+
+/* top bar */
+.notice{background:var(--ink);color:var(--bg);font-size:13px;padding:7px 0;text-align:center}
+.notice .wrap{display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap}
+header.top{padding:16px 0 6px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:44px;height:44px;flex:none}
+.brand h1{font-size:28px;font-weight:750}
+.brand p{color:var(--muted);font-size:14px}
+
+/* tabs */
+nav.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px;margin:14px 0 18px;width:100%;max-width:460px}
+nav.tabs button{flex:1;border:0;background:transparent;padding:9px 10px;border-radius:999px;cursor:pointer;font-weight:600;font-size:15px;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+
+/* panes */
+.pane{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.section-title{font-size:22px;font-weight:700;margin-bottom:4px}
+.grid{display:grid;gap:16px}
+@media(min-width:920px){
+  .grid.two{grid-template-columns:1.25fr 1fr;align-items:start}
+  .sticky{position:sticky;top:12px}
+}
+
+/* segmented control */
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--bg);padding:8px 12px;border-radius:999px;cursor:pointer;font-weight:600;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+/* risk pills and dots */
+.pill{display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 9px;border-radius:999px;font-weight:650;font-size:14px;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 14%,transparent);white-space:nowrap}
+.pill::before,.dot{content:"";width:10px;height:10px;border-radius:50%;background:var(--c);display:inline-block;flex:none}
+.lvl0{--c:var(--r0)} .lvl1{--c:var(--r1)} .lvl2{--c:var(--r2)} .lvl3{--c:var(--r3)}
+
+/* map */
+.mapbox{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--sea)}
+.mapbox svg{display:block;width:100%;height:auto}
+.marker{cursor:pointer}
+.marker text{font-family:var(--body);font-weight:650;font-size:30px;fill:var(--ink);paint-order:stroke;stroke:var(--land);stroke-width:7px;stroke-linejoin:round}
+.marker.sel .ring{stroke:var(--ink);stroke-width:4}
+.halo{transform-box:fill-box;transform-origin:center}
+.halo.pulse{animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:.28}50%{transform:scale(1.25);opacity:.12}}
+@media(prefers-reduced-motion:reduce){.halo.pulse{animation:none}}
+
+.scrub{margin-top:12px;display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:center}
+.scrub input[type=range]{width:100%;accent-color:var(--accent)}
+.play{border:0;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:9px 16px;font-weight:650;cursor:pointer;min-width:96px}
+.scrub .when{grid-column:1/-1;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.scrub .when b{font-family:var(--display);font-size:20px}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 4px}
+.stat{border-left:4px solid var(--c);padding:2px 0 2px 9px}
+.stat b{font-family:var(--display);font-size:26px;display:block;line-height:1}
+.stat span{font-size:13px;color:var(--muted)}
+
+/* list */
+.rows{margin-top:10px;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:11px 6px;cursor:pointer;border-radius:0}
+.row:hover{background:var(--bg)}
+.row[aria-pressed="true"]{background:var(--accent-soft)}
+.row .n b{display:block;font-weight:650}
+.row .n small,.row .m small{color:var(--muted);font-size:13px}
+.row .m{text-align:right}
+.row .m b{display:block;font-family:var(--display);font-size:20px;line-height:1.1}
+
+/* detail */
+.d-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.d-head h2{font-size:26px}
+.big{display:flex;align-items:baseline;gap:10px;margin:12px 0 2px}
+.big b{font-family:var(--display);font-size:52px;line-height:1;font-weight:750}
+.chart{margin:10px 0 4px}
+.chart svg{width:100%;height:auto;display:block}
+.chart text{font-family:var(--body)}
+.lead{margin:6px 0 4px}
+h3.sub{font-size:16px;margin:18px 0 8px}
+ul.clean{list-style:none;margin:0;padding:0}
+.drv{margin-bottom:10px}
+.drv .dl{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.drv .dl b{font-weight:600;text-align:right}
+.bar{height:8px;border-radius:99px;background:var(--bg);margin-top:4px;overflow:hidden;position:relative}
+.bar i{display:block;height:100%;background:var(--c);border-radius:99px}
+.drv .sh{font-size:12px;color:var(--muted)}
+.action{border-left:4px solid var(--c);background:color-mix(in srgb,var(--c) 10%,transparent);padding:10px 12px;border-radius:0 12px 12px 0}
+.action b{display:block}
+
+/* sms */
+.sms-wrap{background:var(--bg);border-radius:16px;padding:12px}
+.sms-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.bubble{background:var(--surface);border:1px solid var(--line);border-radius:6px 18px 18px 18px;padding:10px 13px;font-size:15px;max-width:92%}
+.bubble small{display:block;color:var(--muted);margin-bottom:2px;font-weight:600}
+.copy{margin-top:10px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:7px 12px;cursor:pointer;font-weight:600;font-size:14px}
+
+/* demo */
+.field{margin-bottom:14px}
+.field label{display:flex;justify-content:space-between;gap:8px;font-weight:600;font-size:15px}
+.field label span{color:var(--accent);font-family:var(--display);font-weight:700}
+.field input[type=range]{width:100%;accent-color:var(--accent)}
+.field select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg)}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 16px}
+.presets button{border:1px solid var(--line);background:var(--bg);padding:8px 12px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;text-align:left}
+.presets button:hover{border-color:var(--accent)}
+.gauge{max-width:300px;margin:0 auto}
+.gauge svg{width:100%;height:auto;display:block}
+
+/* about */
+.about h2{font-size:24px;margin:0 0 8px}
+.about h3{font-size:18px;margin:22px 0 6px}
+.about p,.about li{max-width:68ch}
+.flow{display:grid;gap:10px;margin:12px 0;counter-reset:s}
+@media(min-width:760px){.flow{grid-template-columns:repeat(5,1fr)}}
+.flow div{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--bg);counter-increment:s}
+.flow div::before{content:counter(s);display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:13px;margin-bottom:6px}
+.flow b{display:block}
+.flow span{font-size:14px;color:var(--muted)}
+.two-col{display:grid;gap:14px}
+@media(min-width:760px){.two-col{grid-template-columns:1fr 1fr}}
+.about ul{padding-left:20px;margin:6px 0}
+footer{padding:22px 0 40px;color:var(--muted);font-size:13px}
+.banner{position:fixed;top:0;left:0;right:0;z-index:50;background:var(--ink);color:var(--bg);border-top:8px solid var(--r3);box-shadow:0 12px 32px rgba(0,0,0,.4);animation:drop .35s ease-out;max-height:90vh;overflow:auto}
+.banner.warning{border-top-color:var(--r2)}
+@keyframes drop{from{transform:translateY(-100%)}to{transform:none}}
+@media(prefers-reduced-motion:reduce){.banner{animation:none}}
+.b-in{max-width:1120px;margin:0 auto;padding:12px 16px 16px}
+.b-top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;opacity:.9}
+.banner .pill{color:var(--bg)}
+.banner h2{font-size:24px;margin-bottom:6px}
+.banner p{max-width:70ch}
+.b-meta{margin-top:8px;font-size:14px;opacity:.85}
+.b-act{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.b-act button{border-radius:10px;padding:9px 14px;font-weight:650;cursor:pointer;border:1px solid color-mix(in srgb,var(--bg) 45%,transparent);background:transparent;color:var(--bg)}
+.b-act button[data-show]{background:var(--bg);color:var(--ink);border-color:var(--bg)}
+.log-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.log-head .copy{margin-top:0;white-space:nowrap}
+ul#log{list-style:none;margin:10px 0 0;padding:0;border-top:1px solid var(--line);max-height:340px;overflow:auto}
+.ev{display:grid;grid-template-columns:52px 1fr;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line)}
+.ev .t{font-family:var(--display);font-weight:700;color:var(--accent)}
+.ev p{margin-top:3px}
+.ev.empty,li.empty{display:block;padding:14px 4px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<div id="banner" class="banner" role="alert" aria-live="assertive" hidden></div>
+
+<div class="notice"><div class="wrap"><span>Simulation with synthetic data. Not for real emergency decisions.</span></div></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+        <path d="M24 3 42 10v13c0 10.5-7.4 18.6-18 22C13.4 41.600 6 33.500 6 23V10z" fill="var(--accent)"/>
+        <path d="M11 27c3.500 0 3.500-3 7-3s3.500 3 7 3 3.500-3 7-3 3.500 3 5 3" fill="none" stroke="var(--accent-ink)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M13 34c3 0 3-2.500 6-2.500s3 2.500 6 2.500 3-2.500 6-2.500 3 2.500 4.500 2.500" fill="none" stroke="var(--accent-ink)" stroke-width="3" stroke-linecap="round" opacity=".6"/>
+      </svg>
+      <div>
+        <h1>CoastGuard</h1>
+        <p>Flood Indicative Neural Network (FINN) for coastal West Africa</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button role="tab" data-tab="outlook" aria-selected="true">Outlook</button>
+      <button role="tab" data-tab="demo" aria-selected="false">Try FINN</button>
+      <button role="tab" data-tab="about" aria-selected="false">How it works</button>
+    </nav>
+  </header>
+
+  <!-- OUTLOOK -->
+  <main id="tab-outlook">
+    <div class="grid two">
+      <section>
+        <div class="pane">
+          <h2 class="section-title">Flood outlook, next 72 hours</h2>
+          <p class="muted">Pick a weather situation, then drag the timeline to watch risk build along the Nigerian and Ghanaian coast.</p>
+          <div class="seg" id="scenSeg" style="margin:12px 0" role="group" aria-label="Weather situation"></div>
+          <div class="mapbox"><svg id="map" viewBox="0 0 1000 290" role="img" aria-label="Map of the Gulf of Guinea coast from Takoradi in Ghana to Calabar in Nigeria, with flood risk at seven locations"></svg></div>
+          <div class="scrub">
+            <button class="play" id="play" type="button">Play</button>
+            <input id="hour" type="range" min="0" max="72" value="0" step="1" aria-label="Hours from now">
+            <div class="when"><b id="hourLabel">Now</b><span class="muted small" id="hourSub">Forecast timeline, 0 to 72 hours</span></div>
+          </div>
+          <div class="stats" id="stats"></div>
+        </div>
+        <div class="pane" style="margin-top:16px">
+          <div class="log-head">
+            <div><h2 class="section-title" style="font-size:19px">Alerts issued</h2>
+            <p class="muted small">CoastGuard sends these automatically as risk crosses High and Critical. Simulated dispatch.</p></div>
+            <button class="copy" type="button" data-sound id="soundBtn">Sound on</button>
+          </div>
+          <ul id="log"></ul>
+        </div>
+        <div class="pane" style="margin-top:16px">
+          <h2 class="section-title" style="font-size:19px">Locations, highest risk first</h2>
+          <div class="rows" id="rows"></div>
+        </div>
+      </section>
+      <aside class="sticky"><div class="pane" id="detail"></div></aside>
+    </div>
+  </main>
+
+  <!-- DEMO -->
+  <main id="tab-demo" hidden>
+    <div class="grid two">
+      <section class="pane">
+        <h2 class="section-title">Enter conditions</h2>
+        <p class="muted">Set what is happening at one spot and FINN returns a risk level straight away.</p>
+        <div class="presets" id="presets"></div>
+        <div id="fields"></div>
+        <button class="copy" id="reset" type="button">Reset to a dry day</button>
+      </section>
+      <aside class="pane sticky" id="demoOut"></aside>
+    </div>
+  </main>
+
+  <!-- ABOUT -->
+  <main id="tab-about" class="about" hidden>
+    <div class="pane">
+      <h2>What this prototype is</h2>
+      <p>CoastGuard is the platform. FINN is the prediction engine inside it. This page shows the whole journey a warning takes, from environmental inputs to a plain-language message a community can act on.</p>
+      <div class="two-col" style="margin-top:14px">
+        <div>
+          <h3 style="margin-top:0">Real in this prototype</h3>
+          <ul>
+            <li>The dashboard, map, timeline and risk levels</li>
+            <li>Explanations of which factors drive each prediction</li>
+            <li>Alert writing, including a Pidgin preview</li>
+            <li>The demo mode for judges</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin-top:0">Simulated in this prototype</h3>
+          <ul>
+            <li>All rainfall, river, soil and tide numbers are synthetic scenarios</li>
+            <li>The risk score is a transparent weighted formula that stands in for the trained FINN model</li>
+            <li>Location values such as elevation are illustrative, not measured</li>
+            <li>Alert delivery and subscriber counts</li>
+            <li>No live data feeds and no real forecasts</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>The pipeline</h3>
+      <div class="flow">
+        <div><b>Ingest</b><span>Rainfall, river levels, elevation, soil moisture, land cover, satellite passes</span></div>
+        <div><b>Predict</b><span>FINN scores flood likelihood for each location and hour</span></div>
+        <div><b>Explain</b><span>Show which factors pushed the score up</span></div>
+        <div><b>Translate</b><span>Turn scores into Low, Moderate, High or Critical with actions</span></div>
+        <div><b>Deliver</b><span>SMS and dashboard alerts, later in local languages</span></div>
+      </div>
+
+      <h3>Risk levels</h3>
+      <ul>
+        <li><b>Low</b> (under 25%): no action needed.</li>
+        <li><b>Moderate</b> (25 to 50%): stay alert and clear drains.</li>
+        <li><b>High</b> (50 to 75%): prepare now, move valuables up.</li>
+        <li><b>Critical</b> (over 75%): move to higher ground or a shelter.</li>
+      </ul>
+
+      <h3>Data sources to evaluate for the real build</h3>
+      <ul>
+        <li>Rainfall: CHIRPS and GPM IMERG</li>
+        <li>River discharge: GloFAS forecasts plus any local gauge records</li>
+        <li>Elevation: Copernicus DEM or SRTM</li>
+        <li>Soil moisture: SMAP or ESA CCI</li>
+        <li>Land cover: ESA WorldCover</li>
+        <li>Flood extent and history: Sentinel-1 imagery, Dartmouth Flood Observatory, national agency records</li>
+      </ul>
+
+      <h3>Known limits to state openly</h3>
+      <ul>
+        <li>Sparse river gauges and patchy historical flood records in the region</li>
+        <li>Floods are rare events, so training data is heavily imbalanced</li>
+        <li>Predictions need validation with NEMA, NADMO and local partners before anyone relies on them</li>
+        <li>A neural network must beat simpler baselines such as XGBoost to earn its place</li>
+      </ul>
+
+      <h3>Next steps</h3>
+      <ul>
+        <li>Replace the weighted formula with a trained model and report honest metrics</li>
+        <li>Rebuild the interface in Streamlit with Folium maps and deploy a public link</li>
+        <li>Add Twi, Ga, Ewe, Yoruba and Hausa alerts, reviewed by native speakers</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer>CoastGuard FINN prototype. Synthetic data for demonstration only.</footer>
+</div>
+
+<script>
+/*MODEL_START*/
+const LEVELS=['Low','Moderate','High','Critical'];
+const W={rain24:.20,rain72:.12,disch:.15,soil:.09,elev:.14,coast:.09,land:.06,tide:.15};
+const SLOPE=9, BIAS=.58;
+
+const LOCS=[
+ {id:'takoradi',name:'Takoradi',country:'Ghana',lon:-1.76,lat:4.90,elev:8,coast:2,landV:.7,landLabel:'Port city, low urban',soil0:40,rainM:1.1,riverM:.8,tideM:.6,agency:'NADMO',lx:0,ly:42},
+ {id:'accra',name:'Accra',country:'Ghana',lon:-0.20,lat:5.56,elev:6,coast:3,landV:.85,landLabel:'Dense urban',soil0:38,rainM:.85,riverM:.7,tideM:.7,agency:'NADMO',lx:0,ly:42},
+ {id:'keta',name:'Keta',country:'Ghana',lon:0.99,lat:5.92,elev:2,coast:1,landV:.8,landLabel:'Lagoon shoreline',soil0:55,rainM:.9,riverM:1.2,tideM:1,agency:'NADMO',lx:0,ly:-26},
+ {id:'lagos',name:'Lagos',country:'Nigeria',lon:3.42,lat:6.43,elev:3,coast:2,landV:.85,landLabel:'Dense urban lowland',soil0:45,rainM:1,riverM:.8,tideM:1,agency:'NEMA or LASEMA',lx:0,ly:-26},
+ {id:'warri',name:'Warri',country:'Nigeria',lon:5.75,lat:5.52,elev:5,coast:45,landV:.9,landLabel:'Urban and mangrove wetland',soil0:60,rainM:1.2,riverM:1.4,tideM:.7,agency:'NEMA or DESOPADEC',lx:0,ly:-26},
+ {id:'ph',name:'Port Harcourt',country:'Nigeria',lon:7.01,lat:4.78,elev:12,coast:55,landV:.9,landLabel:'Urban and delta wetland',soil0:55,rainM:1.25,riverM:1.3,tideM:.6,agency:'NEMA',lx:-20,ly:44},
+ {id:'calabar',name:'Calabar',country:'Nigeria',lon:8.32,lat:4.95,elev:15,coast:60,landV:.55,landLabel:'Urban, forest and river',soil0:50,rainM:1.15,riverM:1.1,tideM:.5,agency:'NEMA',lx:-14,ly:-26}
+];
+
+const SCEN={
+ calm:{name:'Ordinary day',base:.15,peak:1.6,c:30,sig:8,amp:.7,surge:0,blurb:'Light showers and normal tides.'},
+ heavy:{name:'Heavy rainfall',base:.4,peak:10,c:26,sig:9,amp:.7,surge:0,blurb:'A slow-moving storm sits over the coast.'},
+ surge:{name:'Storm surge on spring tide',base:.3,peak:6.5,c:30,sig:10,amp:.9,surge:.95,blurb:'Rain arrives just as a storm surge lands on the spring high tide.'},
+ disaster:{name:'Disastrous flood',base:.8,peak:22,c:22,sig:8,amp:.9,surge:1.1,sc:31,blurb:'A catastrophic storm stalls over the coast. Rivers overtop and a surge hits the high tide.'}
+};
+
+function clamp(v,a,b){return Math.min(b,Math.max(a,v));}
+function norm(f){
+  return {rain24:Math.min(1,f.rain24/200),rain72:Math.min(1,f.rain72/350),disch:Math.min(1,f.disch/100),
+          soil:Math.min(1,f.soil/100),elev:Math.exp(-f.elev/10),coast:Math.exp(-f.coast/20),land:f.landV,
+          tide:Math.min(1,Math.max(0,f.tide)/1.6)};
+}
+function finn(f){
+  const x=norm(f); let S=0; const parts={};
+  for(const k in W){parts[k]=W[k]*x[k]; S+=parts[k];}
+  const p=1/(1+Math.exp(-SLOPE*(S-BIAS)));
+  const lvl=p<.25?0:p<.5?1:p<.75?2:3;
+  return {p,S,lvl,parts};
+}
+function rate(s,t){return s.base+s.peak*Math.exp(-0.5*Math.pow((t-s.c)/s.sig,2));}
+function tideAt(s,h){
+  const raw=s.amp*Math.sin(2*Math.PI*(h-3)/12.42)+s.surge*Math.exp(-0.5*Math.pow((h-(s.sc||31))/5,2));
+  return Math.max(0,raw);
+}
+function buildSeries(s,loc){
+  const pts=[], rain=[];
+  const R=t=>rate(s,t)*loc.rainM;
+  const sum=(a,b)=>{let x=0;for(let t=a;t<=b;t++)x+=R(t);return x;};
+  for(let h=0;h<=72;h++){
+    const r24=sum(h-23,h), r72=sum(h-71,h), r72l=sum(h-77,h-6);
+    const disch=clamp(12+88*(r72l/350)*loc.riverM,0,120);
+    const soil=Math.min(100,loc.soil0+(100-loc.soil0)*Math.min(1,r72/250)*.9);
+    const tide=tideAt(s,h)*loc.tideM;
+    const f={rain24:r24,rain72:r72,disch,soil,elev:loc.elev,coast:loc.coast,landV:loc.landV,landLabel:loc.landLabel,tide};
+    pts.push({f,r:finn(f)}); rain.push(R(h));
+  }
+  let peak=0; pts.forEach((p,i)=>{if(p.r.p>pts[peak].r.p)peak=i;});
+  const fh=pts.findIndex(p=>p.r.lvl>=2);
+  return {pts,rain,peak,fh};
+}
+const DATA={};
+for(const k in SCEN){DATA[k]={};LOCS.forEach(l=>{DATA[k][l.id]=buildSeries(SCEN[k],l);});}
+const SUBS={takoradi:6200,accra:21500,keta:4100,lagos:38000,warri:12400,ph:27800,calabar:5600};
+const EV={};
+for(const k in SCEN){
+  EV[k]=[];
+  LOCS.forEach(l=>{
+    const s=DATA[k][l.id];
+    const w=s.pts.findIndex(p=>p.r.lvl>=2), e=s.pts.findIndex(p=>p.r.lvl>=3);
+    if(w>=0) EV[k].push({loc:l.id,h:w,kind:'warning',lead:Math.max(0,s.peak-w)});
+    if(e>=0) EV[k].push({loc:l.id,h:e,kind:'emergency',lead:Math.max(0,s.peak-e)});
+  });
+  EV[k].sort((a,b)=>a.h-b.h);
+}
+/*MODEL_END*/
+
+/* ---------- copy and helpers ---------- */
+const DRIVERS=[
+ {k:'rain24',label:'Rain in the last 24 hours',fmt:f=>Math.round(f.rain24)+' mm'},
+ {k:'rain72',label:'Rain in the last 3 days',fmt:f=>Math.round(f.rain72)+' mm'},
+ {k:'disch',label:'River level',fmt:f=>Math.round(f.disch)+'% of flood stage'},
+ {k:'soil',label:'Soil moisture',fmt:f=>Math.round(f.soil)+'% full'},
+ {k:'elev',label:'Ground elevation',fmt:f=>Math.round(f.elev)+' m above sea level'},
+ {k:'coast',label:'Distance to the coast',fmt:f=>Math.round(f.coast)+' km'},
+ {k:'land',label:'Land cover',fmt:f=>f.landLabel},
+ {k:'tide',label:'Tide and surge',fmt:f=>f.tide.toFixed(1)+' m above mean'}
+];
+const ACTIONS=[
+ {t:'No action needed',d:'Keep drains clear and check the next update.'},
+ {t:'Stay alert',d:'Clear drains near you and know where your nearest higher ground is.'},
+ {t:'Prepare now',d:'Move valuables and documents up, charge phones, agree a meeting point and avoid low roads.'},
+ {t:'Act now',d:'Leave low-lying areas for higher ground or a shelter. Never walk or drive through floodwater.'}
+];
+function alertText(lang,place,lvl,agency,when){
+  const inEn=when>0?' within about '+when+' hours':'';
+  const inPg=when>0?' for like '+when+' hours':'';
+  if(lang==='en'){
+    return [
+      `Flood risk is LOW in ${place} right now. No action needed. Next update in 6 hours.`,
+      `Flood WATCH for ${place}. Heavy rain and high water may flood low areas. Clear drains and stay alert. Updates: ${agency}.`,
+      `Flood WARNING for ${place}${inEn}. Flooding is likely in low-lying areas. Move valuables up, charge your phone and avoid flooded roads. Updates: ${agency}.`,
+      `FLOOD EMERGENCY for ${place}. Move to higher ground or a shelter now. Do not cross floodwater. Emergency: call 112. Updates: ${agency}.`
+    ][lvl];
+  }
+  return [
+    `Flood risk low for ${place} now. No wahala. Just dey check for update.`,
+    `Flood WATCH for ${place}. Rain and water fit rise for low areas. Clear your gutter and dey alert. Update: ${agency}.`,
+    `Flood WARNING for ${place}${inPg}. Water fit enter house for low areas. Carry your important things go up, charge your phone, no waka for flooded road. Update: ${agency}.`,
+    `FLOOD EMERGENCY for ${place}! Comot from low area now go high ground or shelter. Make you no cross flood water. Call 112. Update: ${agency}.`
+  ][lvl];
+}
+const $=s=>document.querySelector(s);
+const pct=p=>Math.round(p*100);
+const tl=h=>h===0?'Now':'+'+h+'h';
+
+/* ---------- state ---------- */
+let scen='heavy', hour=0, sel='lagos', lang='en', timer=null;
+let sound=true, actx=null, bannerEv=null;
+const alertCtx={};
+
+/* ---------- shared components ---------- */
+function driversHTML(res,f){
+  const rows=DRIVERS.map(d=>({d,c:res.parts[d.k]})).sort((a,b)=>b.c-a.c).slice(0,5);
+  return `<ul class="clean lvl${res.lvl}">`+rows.map(({d,c})=>{
+    const share=c/res.S*100;
+    return `<li class="drv"><div class="dl"><span>${d.label}</span><b>${d.fmt(f)}</b></div><div class="bar"><i style="width:${Math.max(3,share)}%"></i></div><div class="sh">${Math.round(share)}% of the risk score</div></li>`;
+  }).join('')+`</ul>`;
+}
+function actionHTML(lvl){
+  const a=ACTIONS[lvl];
+  return `<div class="action lvl${lvl}"><b>${a.t}</b>${a.d}</div>`;
+}
+function alertHTML(id,ctx){
+  alertCtx[id]=ctx;
+  return `<div class="sms-wrap" id="${id}"></div>`;
+}
+function paintAlert(id){
+  const c=alertCtx[id]; if(!c) return;
+  const txt=alertText(lang,c.place,c.lvl,c.agency,c.when);
+  const el=document.getElementById(id); if(!el) return;
+  el.innerHTML=`<div class="sms-top"><span class="small muted">Simulated SMS alert</span>
+    <div class="seg" role="group" aria-label="Alert language">
+      <button type="button" data-lang="en" aria-pressed="${lang==='en'}">English</button>
+      <button type="button" data-lang="pcm" aria-pressed="${lang==='pcm'}">Pidgin</button>
+    </div></div>
+    <div class="bubble"><small>CoastGuard</small><span data-txt>${txt}</span></div>
+    <button class="copy" type="button" data-copy="${id}">Copy message</button>`;
+}
+function paintAllAlerts(){Object.keys(alertCtx).forEach(paintAlert);}
+
+/* ---------- map ---------- */
+const PX=76;
+const proj=(lon,lat)=>[(lon+3.5)*PX,(7.4-lat)*PX];
+function pathFrom(pts){return pts.map((p,i)=>{const [x,y]=proj(p[0],p[1]);return (i?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);}).join(' ');}
+const COAST=[[9.5,4.65],[8.55,4.5],[7.6,4.35],[6.75,4.3],[6.25,4.28],[5.9,4.45],[5.55,4.9],[5.3,5.35],[5.0,5.6],[4.5,5.95],[3.9,6.3],[3.4,6.4],[2.9,6.38],[2.4,6.33],[1.6,6.2],[1.2,6.1],[0.99,5.93],[0.6,5.78],[0.0,5.6],[-0.5,5.32],[-1.25,5.05],[-1.75,4.83],[-2.1,4.74],[-2.6,4.85],[-3.1,5.1],[-3.5,5.22]];
+const LANDPATH=pathFrom([[-3.5,7.4],[9.5,7.4],...COAST])+' Z';
+const VOLTA=pathFrom([[0.2,7.4],[0.4,6.7],[0.6,6.2],[0.75,5.8]]);
+const NIGER=pathFrom([[5.9,7.4],[6.2,6.6],[6.2,5.9],[6.05,5.4],[5.5,4.9]])+' '+pathFrom([[6.05,5.4],[6.3,4.4]]);
+function borderLine(lon,lat0){const a=proj(lon,lat0),b=proj(lon,7.4);return `M${a[0]} ${a[1]} L${b[0]} ${b[1]}`;}
+function mapBase(){
+  const t=(lon,lat,txt,anchor)=>{const [x,y]=proj(lon,lat);return `<text x="${x}" y="${y}" text-anchor="${anchor||'middle'}" font-size="24" fill="var(--muted)" opacity=".85" style="font-family:var(--body);font-weight:600">${txt}</text>`;};
+  return `<rect width="1000" height="290" fill="var(--sea)"/>
+   <path d="${LANDPATH}" fill="var(--land)" stroke="var(--coast)" stroke-width="3" stroke-linejoin="round"/>
+   <path d="${borderLine(1.2,6.1)} ${borderLine(2.7,6.35)} ${borderLine(8.55,4.55)}" stroke="var(--border-map)" stroke-width="2" stroke-dasharray="7 6" fill="none"/>
+   <path d="${VOLTA}" stroke="var(--river)" stroke-width="5" fill="none" stroke-linecap="round"/>
+   <path d="${NIGER}" stroke="var(--river)" stroke-width="5" fill="none" stroke-linecap="round"/>
+   ${t(-1.7,6.9,'Ghana')}${t(6.6,7.05,'Nigeria')}${t(1.95,7.15,'Togo')}${t(1.95,6.85,'Benin')}
+   <text x="${proj(3.6,3.9)[0]}" y="${proj(3.6,3.9)[1]}" text-anchor="middle" font-size="26" font-style="italic" fill="var(--muted)" style="font-family:var(--body)">Gulf of Guinea</text>`;
+}
+function renderMap(){
+  const mk=LOCS.map(l=>{
+    const r=DATA[scen][l.id].pts[hour].r; const [x,y]=proj(l.lon,l.lat);
+    const halo=16+r.p*46;
+    return `<g class="marker lvl${r.lvl}${l.id===sel?' sel':''}" data-loc="${l.id}" role="button" tabindex="0" aria-label="${l.name}, ${LEVELS[r.lvl]} risk, ${pct(r.p)} percent">
+      <circle class="halo${r.lvl===3?' pulse':''}" cx="${x}" cy="${y}" r="${halo}" fill="var(--c)" opacity="${.14+r.p*.16}"/>
+      <circle class="ring" cx="${x}" cy="${y}" r="15" fill="var(--c)" stroke="var(--surface)" stroke-width="4"/>
+      <circle cx="${x}" cy="${y}" r="34" fill="transparent"/>
+      <text x="${x+l.lx}" y="${y+l.ly}" text-anchor="middle">${l.name}</text></g>`;
+  }).join('');
+  $('#map').innerHTML=mapBase()+mk;
+}
+
+/* ---------- outlook panels ---------- */
+function renderStats(){
+  const c=[0,0,0,0]; LOCS.forEach(l=>c[DATA[scen][l.id].pts[hour].r.lvl]++);
+  $('#stats').innerHTML=c.map((n,i)=>`<div class="stat lvl${i}"><b>${n}</b><span>${LEVELS[i]}</span></div>`).join('');
+}
+function renderRows(){
+  const rows=LOCS.map(l=>({l,s:DATA[scen][l.id]})).sort((a,b)=>b.s.pts[hour].r.p-a.s.pts[hour].r.p);
+  $('#rows').innerHTML=rows.map(({l,s})=>{
+    const r=s.pts[hour].r;
+    return `<button class="row" type="button" data-loc="${l.id}" aria-pressed="${l.id===sel}">
+      <span class="dot lvl${r.lvl}"></span>
+      <span class="n"><b>${l.name}</b><small>${l.country}</small></span>
+      <span class="m"><b>${pct(r.p)}%</b><small>${LEVELS[r.lvl]}</small></span></button>`;
+  }).join('');
+}
+function chartSVG(s){
+  const W_=400,H_=190,L=8,R=8,T=10,B=24, iw=W_-L-R, ih=H_-T-B;
+  const X=h=>L+iw*h/72, Y=p=>T+ih*(1-p);
+  const bands=[0,1,2,3].map(i=>`<rect x="${L}" y="${Y((i+1)*.25)}" width="${iw}" height="${ih*.25}" fill="var(--r${i})" opacity=".11"/>
+    <text x="${L+5}" y="${Y((i+1)*.25)+13}" font-size="10.5" fill="var(--muted)">${LEVELS[i]}</text>`).join('');
+  const bw=iw/73*.78;
+  const bars=s.rain.map((v,h)=>{const bh=Math.min(1,v/14)*ih*.4;return `<rect x="${X(h)-bw/2}" y="${T+ih-bh}" width="${bw}" height="${bh}" fill="var(--river)" opacity=".55"/>`;}).join('');
+  const line=s.pts.map((p,h)=>(h?'L':'M')+X(h).toFixed(1)+' '+Y(p.r.p).toFixed(1)).join(' ');
+  const pk=s.peak, pp=s.pts[pk].r;
+  const anchor=pk>54?'end':pk<12?'start':'middle';
+  const ticks=[0,24,48,72].map(h=>`<text x="${X(h)}" y="${H_-6}" font-size="11" fill="var(--muted)" text-anchor="${h===0?'start':h===72?'end':'middle'}">${h===0?'Now':'+'+h+'h'}</text>`).join('');
+  return `<svg viewBox="0 0 ${W_} ${H_}" role="img" aria-label="Flood likelihood over the next 72 hours with rainfall bars">
+    ${bands}${bars}
+    <path d="${line}" fill="none" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+    <line x1="${X(hour)}" x2="${X(hour)}" y1="${T}" y2="${T+ih}" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 3"/>
+    <circle cx="${X(hour)}" cy="${Y(s.pts[hour].r.p)}" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
+    <circle cx="${X(pk)}" cy="${Y(pp.p)}" r="4" fill="var(--c,var(--r${pp.lvl}))" stroke="var(--ink)" stroke-width="1.5"/>
+    <text x="${X(pk)}" y="${Math.max(11,Y(pp.p)-8)}" font-size="11" font-weight="600" fill="var(--ink)" text-anchor="${anchor}">Peak ${pct(pp.p)}% at +${pk}h</text>
+    ${ticks}</svg>`;
+}
+function leadText(s){
+  const pk=s.pts[s.peak].r;
+  if(pk.lvl<2) return `No High risk expected in the next 72 hours. Highest reading is ${LEVELS[pk.lvl]} (${pct(pk.p)}%) at ${tl(s.peak)}.`;
+  if(s.fh===0) return `Already at High risk or above. Peak reading is ${LEVELS[pk.lvl]} at ${tl(s.peak)}.`;
+  return `High risk is expected from about +${s.fh}h, which is your warning window. Peak reading is ${LEVELS[pk.lvl]} at ${tl(s.peak)}.`;
+}
+function renderDetail(){
+  const l=LOCS.find(x=>x.id===sel), s=DATA[scen][sel], cur=s.pts[hour], r=cur.r;
+  const when=(s.fh>hour)?s.fh-hour:0;
+  $('#detail').innerHTML=`
+    <div class="d-head"><div><h2>${l.name}</h2><p class="muted">${l.country}, ${l.landLabel.toLowerCase()}</p></div>
+      <span class="pill lvl${r.lvl}">${LEVELS[r.lvl]}</span></div>
+    <div class="big lvl${r.lvl}"><b>${pct(r.p)}%</b><span class="muted">flood likelihood ${hour===0?'now':'at '+tl(hour)}</span></div>
+    <div class="chart">${chartSVG(s)}</div>
+    <p class="lead">${leadText(s)}</p>
+    <h3 class="sub">What is driving this</h3>
+    ${driversHTML(r,cur.f)}
+    <h3 class="sub">What people should do</h3>
+    ${actionHTML(r.lvl)}
+    <h3 class="sub">Alert that would go out</h3>
+    ${alertHTML('alert-out',{place:l.name,lvl:r.lvl,agency:l.agency,when})}`;
+  paintAlert('alert-out');
+}
+function renderHourLabel(){
+  $('#hourLabel').textContent=hour===0?'Now':`+${hour} hours from now`;
+  $('#hourSub').textContent=SCEN[scen].blurb;
+}
+function renderLog(){
+  const evs=EV[scen].filter(e=>e.h<=hour).sort((a,b)=>b.h-a.h||(a.kind==='emergency'?-1:1));
+  $('#log').innerHTML=evs.length?evs.map(e=>{
+    const l=LOCS.find(x=>x.id===e.loc), lvl=e.kind==='emergency'?3:2;
+    return `<li class="ev"><span class="t">${tl(e.h)}</span><div><span class="pill lvl${lvl}">${e.kind==='emergency'?'Emergency':'Warning'}</span> <b>${l.name}</b>
+      <p class="small muted">SMS sent to ${SUBS[e.loc].toLocaleString('en-US')} subscribers and ${l.agency} notified. ${e.lead>0?'Peak flooding in about '+e.lead+' hours.':'Peak flooding is happening now.'}</p></div></li>`;
+  }).join(''):`<li class="empty muted">No alerts issued yet. Press Play or drag the timeline forward.</li>`;
+}
+/* ---- alert trigger: banner, siren, vibration ---- */
+function unlockAudio(){
+  if(!sound) return;
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==='suspended') actx.resume();}catch(e){}
+}
+function tone(f,t,d){
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='square'; o.frequency.value=f;
+  g.gain.setValueAtTime(.0001,t); g.gain.exponentialRampToValueAtTime(.06,t+.02); g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+d+.02);
+}
+function siren(kind){
+  if(sound&&actx){
+    try{const t0=actx.currentTime, n=kind==='emergency'?4:2; for(let i=0;i<n;i++){tone(880,t0+i*.46,.22);tone(660,t0+i*.46+.23,.22);}}catch(e){}
+  }
+  try{if(navigator.vibrate) navigator.vibrate(kind==='emergency'?[300,120,300,120,500]:[200,100,200]);}catch(e){}
+}
+function paintBanner(){
+  const b=$('#banner');
+  if(!bannerEv){b.hidden=true;return;}
+  const {top,more,kind}=bannerEv, l=LOCS.find(x=>x.id===top.loc), lvl=kind==='emergency'?3:2;
+  const txt=alertText(lang,l.name,lvl,l.agency,kind==='warning'?top.lead:0);
+  const title=(kind==='emergency'?'Flood emergency: ':'Flood warning: ')+l.name+(more>0?` and ${more} more`:'');
+  const lead=top.lead>0?`Peak flooding expected in about ${top.lead} hours.`:'Peak flooding is happening now.';
+  b.className='banner '+kind;
+  b.innerHTML=`<div class="b-in"><div class="b-top"><span class="pill lvl${lvl}">${kind==='emergency'?'Emergency alert':'Warning'}</span><span>CoastGuard, ${tl(bannerEv.h)}</span></div>
+    <h2>${title}</h2><p>${txt}</p>
+    <p class="b-meta">${lead} Sent to ${SUBS[top.loc].toLocaleString('en-US')} subscribers by SMS and app push (simulated).</p>
+    <div class="b-act"><button type="button" data-show="${top.loc}">Show ${l.name}</button><button type="button" data-dismiss>Dismiss</button></div></div>`;
+  b.hidden=false;
+}
+function hideBanner(){bannerEv=null;paintBanner();}
+function fireEvents(prev,h){
+  const evs=EV[scen].filter(e=>e.h>prev&&e.h<=h);
+  if(!evs.length) return;
+  const em=evs.filter(e=>e.kind==='emergency');
+  const use=em.length?em:evs;
+  if(!em.length&&bannerEv&&bannerEv.kind==='emergency') return;
+  const pk=e=>{const s=DATA[scen][e.loc];return s.pts[s.peak].r.p;};
+  use.sort((a,b)=>pk(b)-pk(a));
+  bannerEv={top:use[0],more:use.length-1,kind:use[0].kind,h};
+  paintBanner(); siren(use[0].kind);
+}
+function setHour(h){
+  const prev=hour; hour=h; $('#hour').value=h;
+  renderOutlook();
+  if(h>prev) fireEvents(prev,h); else if(h<prev) hideBanner();
+}
+function renderOutlook(full){
+  renderHourLabel(); renderMap(); renderStats(); renderLog(); renderRows();
+  if(full!==false) renderDetail();
+}
+function renderScen(){
+  $('#scenSeg').innerHTML=Object.keys(SCEN).map(k=>`<button type="button" data-scen="${k}" aria-pressed="${k===scen}">${SCEN[k].name}</button>`).join('');
+}
+
+/* ---------- demo mode ---------- */
+const LAND={urban:{v:.85,label:'Dense urban'},wetland:{v:.9,label:'Mangrove and wetland'},farm:{v:.5,label:'Farmland'},veg:{v:.25,label:'Forest and vegetation'}};
+const FIELDS=[
+ {k:'rain24',label:'Rain in the last 24 hours',min:0,max:250,step:1,u:' mm'},
+ {k:'rain72',label:'Rain in the last 3 days',min:0,max:450,step:1,u:' mm'},
+ {k:'disch',label:'River level',min:0,max:120,step:1,u:'% of flood stage'},
+ {k:'soil',label:'Soil moisture',min:10,max:100,step:1,u:'% full'},
+ {k:'elev',label:'Ground elevation',min:0,max:40,step:1,u:' m'},
+ {k:'coast',label:'Distance to the coast',min:0,max:80,step:1,u:' km'},
+ {k:'tide',label:'Tide and surge above mean',min:0,max:1.8,step:.1,u:' m'}
+];
+const DRY={rain24:5,rain72:12,disch:15,soil:25,elev:30,coast:20,land:'farm',tide:.2};
+const PRESETS=[
+ {n:'Lagos lagoon shore, heavy rain',v:{rain24:150,rain72:260,disch:70,soil:85,elev:3,coast:2,land:'urban',tide:.8}},
+ {n:'Niger Delta after a week of rain',v:{rain24:90,rain72:380,disch:100,soil:95,elev:5,coast:40,land:'wetland',tide:.3}},
+ {n:'Accra hillside, short storm',v:{rain24:110,rain72:130,disch:45,soil:60,elev:25,coast:6,land:'urban',tide:.4}},
+ {n:'Dry season, higher ground',v:DRY}
+];
+let demo=Object.assign({},DRY);
+function buildDemoFields(){
+  $('#fields').innerHTML=FIELDS.map(f=>`<div class="field"><label for="f-${f.k}">${f.label}<span id="v-${f.k}"></span></label>
+    <input type="range" class="demo-in" id="f-${f.k}" data-k="${f.k}" min="${f.min}" max="${f.max}" step="${f.step}"></div>`).join('')+
+   `<div class="field"><label for="f-land">Land cover</label><select id="f-land" class="demo-in" data-k="land">${Object.keys(LAND).map(k=>`<option value="${k}">${LAND[k].label}</option>`).join('')}</select></div>`;
+  $('#presets').innerHTML=PRESETS.map((p,i)=>`<button type="button" data-preset="${i}">${p.n}</button>`).join('');
+}
+function syncDemoInputs(){
+  FIELDS.forEach(f=>{const el=document.getElementById('f-'+f.k); el.value=demo[f.k]; document.getElementById('v-'+f.k).textContent=(f.k==='tide'?Number(demo[f.k]).toFixed(1):Math.round(demo[f.k]))+f.u;});
+  document.getElementById('f-land').value=demo.land;
+}
+function polar(cx,cy,r,a){const t=(180-a)*Math.PI/180;return [cx+r*Math.cos(t),cy-r*Math.sin(t)];}
+function arc(cx,cy,r,a0,a1){const p0=polar(cx,cy,r,a0),p1=polar(cx,cy,r,a1);return `M${p0[0].toFixed(1)} ${p0[1].toFixed(1)} A${r} ${r} 0 0 1 ${p1[0].toFixed(1)} ${p1[1].toFixed(1)}`;}
+function gaugeSVG(p){
+  const segs=[0,1,2,3].map(i=>`<path d="${arc(120,120,96,i*45+2,(i+1)*45-2)}" stroke="var(--r${i})" stroke-width="18" fill="none"/>`).join('');
+  const n=polar(120,120,80,p*180);
+  return `<svg viewBox="0 0 240 134" role="img" aria-label="Risk gauge at ${pct(p)} percent">${segs}
+   <line x1="120" y1="120" x2="${n[0].toFixed(1)}" y2="${n[1].toFixed(1)}" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+   <circle cx="120" cy="120" r="9" fill="var(--ink)"/></svg>`;
+}
+function renderDemo(){
+  const f={rain24:+demo.rain24,rain72:+demo.rain72,disch:+demo.disch,soil:+demo.soil,elev:+demo.elev,coast:+demo.coast,landV:LAND[demo.land].v,landLabel:LAND[demo.land].label,tide:+demo.tide};
+  const r=finn(f);
+  $('#demoOut').innerHTML=`
+    <h2 class="section-title">FINN prediction</h2>
+    <div class="gauge">${gaugeSVG(r.p)}</div>
+    <div style="text-align:center;margin-top:-6px" class="lvl${r.lvl}">
+      <div style="font-family:var(--display);font-size:46px;font-weight:750;line-height:1">${pct(r.p)}%</div>
+      <span class="pill lvl${r.lvl}" style="margin-top:6px">${LEVELS[r.lvl]} risk</span></div>
+    <h3 class="sub">What is driving this</h3>${driversHTML(r,f)}
+    <h3 class="sub">What people should do</h3>${actionHTML(r.lvl)}
+    <h3 class="sub">Alert that would go out</h3>${alertHTML('alert-demo',{place:'your area',lvl:r.lvl,agency:'NEMA, NADMO or your local emergency office',when:0})}`;
+  paintAlert('alert-demo');
+}
+
+/* ---------- events ---------- */
+function setTab(t){
+  ['outlook','demo','about'].forEach(k=>{document.getElementById('tab-'+k).hidden=(k!==t);});
+  document.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===t));
+  if(t!=='outlook') stopPlay();
+  window.scrollTo({top:0});
+}
+function stopPlay(){if(timer){clearInterval(timer);timer=null;} const b=$('#play'); if(b) b.textContent='Play';}
+function startPlay(ms){
+  if(hour>=72) setHour(0);
+  $('#play').textContent='Pause';
+  timer=setInterval(()=>{
+    if(hour>=72){stopPlay();return;}
+    setHour(hour+1);
+  },ms||130);
+}
+function pickWorst(){
+  let best=LOCS[0].id,bp=-1; LOCS.forEach(l=>{const p=DATA[scen][l.id].pts[DATA[scen][l.id].peak].r.p;if(p>bp){bp=p;best=l.id;}});
+  sel=best;
+}
+document.addEventListener('click',e=>{
+  unlockAudio();
+  const t=e.target.closest('[data-tab],[data-scen],[data-loc],[data-lang],[data-preset],[data-copy],[data-dismiss],[data-show],[data-sound],#play,#reset');
+  if(!t) return;
+  if(t.dataset.tab){setTab(t.dataset.tab);return;}
+  if(t.dataset.scen){scen=t.dataset.scen;stopPlay();hideBanner();pickWorst();renderScen();setHour(0);if(scen==='disaster')startPlay(170);return;}
+  if(t.hasAttribute('data-dismiss')){hideBanner();return;}
+  if(t.dataset.show){sel=t.dataset.show;hideBanner();renderOutlook();document.getElementById('detail').scrollIntoView({behavior:'smooth',block:'start'});return;}
+  if(t.hasAttribute('data-sound')){sound=!sound;t.textContent=sound?'Sound on':'Sound off';unlockAudio();return;}
+  if(t.dataset.loc){sel=t.dataset.loc;renderOutlook();
+    if(window.innerWidth<920) document.getElementById('detail').scrollIntoView({behavior:'smooth',block:'start'});return;}
+  if(t.dataset.lang){lang=t.dataset.lang;paintAllAlerts();if(bannerEv)paintBanner();return;}
+  if(t.dataset.preset!==undefined){demo=Object.assign({},PRESETS[+t.dataset.preset].v);syncDemoInputs();renderDemo();return;}
+  if(t.dataset.copy){
+    const txt=document.querySelector('#'+t.dataset.copy+' [data-txt]').textContent;
+    const done=()=>{t.textContent='Copied';setTimeout(()=>{t.textContent='Copy message';},1600);};
+    try{navigator.clipboard.writeText(txt).then(done,()=>{t.textContent='Press and hold the text to copy';});}
+    catch(err){t.textContent='Press and hold the text to copy';}
+    return;
+  }
+  if(t.id==='play'){timer?stopPlay():startPlay();return;}
+  if(t.id==='reset'){demo=Object.assign({},DRY);syncDemoInputs();renderDemo();}
+});
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('g.marker')){e.preventDefault();sel=e.target.dataset.loc;renderOutlook();}
+});
+$('#hour').addEventListener('input',e=>{stopPlay();setHour(+e.target.value);});
+document.addEventListener('input',e=>{
+  if(e.target.classList.contains('demo-in')){
+    demo[e.target.dataset.k]=e.target.value;
+    syncDemoInputs();renderDemo();
+  }
+});
+
+/* ---------- init ---------- */
+pickWorst(); renderScen(); renderOutlook();
+buildDemoFields(); demo=Object.assign({},PRESETS[0].v); syncDemoInputs(); renderDemo();
+</script>
+</body>
+</html>
