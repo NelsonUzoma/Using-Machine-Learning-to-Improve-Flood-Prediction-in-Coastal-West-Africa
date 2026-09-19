@@ -4,7 +4,7 @@
 
 CoastGuard is a flood early-warning platform for vulnerable coastal communities. FINN is the prediction engine inside it. CoastGuard turns FINN's outputs into clear risk levels, explanations and alerts that communities, emergency responders and local decision-makers can act on before a flood becomes a disaster.
 
-**Live prototype:** https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/
+**Live prototype:** https://nelsonuzoma.github.io/Using-Machine-Learning-to-Improve-Flood-Prediction-in-Coastal-West-Africa/
 
 > **Status: research prototype.** The interactive demo uses synthetic data, and its risk score comes from a transparent weighted formula standing in for the trained FINN model. It is not a real forecast and must not be used for real emergency decisions. See [Current status](#current-status) for exactly what is real and what is simulated.
 
